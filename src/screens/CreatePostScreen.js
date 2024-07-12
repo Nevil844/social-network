@@ -33,7 +33,7 @@ const CreatePostScreen = () => {
         setUser(dbUser);
         console.log(dbUser);
       } else {
-        navigation.navigate("Update profile");
+        navigation.navigate("Update Profile");
       }
     };
 
