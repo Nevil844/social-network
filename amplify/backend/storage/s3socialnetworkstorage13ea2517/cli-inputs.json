@@ -1,0 +1,14 @@
+{
+  "resourceName": "s3socialnetworkstorage13ea2517",
+  "bucketName": "social-network-storage-13ea2517",
+  "policyUUID": "3b726753",
+  "storageAccess": "authAndGuest",
+  "guestAccess": [
+    "READ"
+  ],
+  "authAccess": [
+    "CREATE_AND_UPDATE",
+    "READ",
+    "DELETE"
+  ]
+}

@@ -1,21 +1,75 @@
-import { Text, View, StyleSheet, Image, TextInput, Button } from "react-native";
-import { useState } from "react";
-import {Entypo} from "@expo/vector-icons"
-import * as ImagePicker from "expo-image-picker"
+import { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  Image,
+  Button,
+  KeyboardAvoidingView,
+  Platform
+} from "react-native";
+import { Entypo } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DataStore, Auth, Storage } from "aws-amplify";
+import { Post, User } from "../models";
 import { useNavigation } from "@react-navigation/native";
-
-const user = {
-  id: "u1",
-  image:
-    "https://notjustdev-dummy.s3.us-east-2.amazonaws.com/avatars/vadim.jpg",
-  name: "Vadim Savin",
-};
+import { v4 as uuidv4 } from "uuid";
 
 const CreatePostScreen = () => {
   const [description, setDescription] = useState("");
-  const [image, setImage]=useState(null);
+  const [image, setImage] = useState(null);
+  const insets = useSafeAreaInsets();
+  const [user, setUser] = useState();
 
-  const navigation=useNavigation();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const userData = await Auth.currentAuthenticatedUser();
+      const dbUser = await DataStore.query(User, userData.attributes.sub);
+      if (dbUser) {
+        setUser(dbUser);
+        console.log(dbUser);
+      } else {
+        navigation.navigate("Update profile");
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  const onPost = async () => {
+    const newPost = {
+      description: description,
+      numberOfLikes: 1020,
+      numberOfShares: 1020,
+      postUserId: user.id,
+      _version: 1,
+    };
+    if (image) {
+      newPost.image = await uploadFile(image);
+    }
+    await DataStore.save(new Post(newPost));
+    setDescription("");
+    setImage("");
+    navigation.goBack();
+  };
+
+  const uploadFile = async (fileUri) => {
+    try {
+      const response = await fetch(fileUri);
+      const blob = await response.blob();
+      const key = `${uuidv4()}.png`;
+      await Storage.put(key, blob, {
+        contentType: "image/png", // contentType is optional
+      });
+      return key;
+    } catch (err) {
+      console.log("Error uploading file:", err);
+    }
+  };
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -24,26 +78,22 @@ const CreatePostScreen = () => {
       aspect: [4, 3],
       quality: 1,
     });
-  
-    console.log(result);
-  
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
+
+    if (!result.cancelled) {
+      setImage(result.uri);
     }
-  };
-  
-  
-  const onSubmit = () => {
-    console.warn("On submit", description);
-    setDescription("");
-    navigation.goBack();
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={[styles.container, { marginBottom: insets.bottom }]}
+      contentContainerStyle={{ flex: 1 }}
+      keyboardVerticalOffset={150}
+    >
       <View style={styles.header}>
-        <Image source={{ uri: user.image }} style={styles.ProfileImage} />
-        <Text style={styles.name}>{user.name}</Text>
+        <Image source={{ uri: user?.image }} style={styles.profileImage} />
+        <Text style={styles.name}>{user?.name}</Text>
         <Entypo
           onPress={pickImage}
           name="images"
@@ -52,55 +102,57 @@ const CreatePostScreen = () => {
           style={styles.icon}
         />
       </View>
+
       <TextInput
+        placeholder="What's on your mind?"
         value={description}
         onChangeText={setDescription}
-        placeholder="What is on your mind?"
+        style={styles.input}
         multiline
       />
-      <Image source={{uri:image}} style={styles.image} />
+      {image && <Image source={{ uri: image }} style={styles.image} />}
+
       <View style={styles.buttonContainer}>
-        <Button title="Post" onPress={onSubmit} />
+        <Button onPress={onPost} title="Post" disabled={!description} />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "white",
     width: "100%",
     padding: 10,
-    paddingTop: 40,
-    backgroundColor: "#fff",
-    marginBottom: 10,
   },
   header: {
     padding: 10,
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
-    marginBottom: 10,
   },
-  ProfileImage: {
+  profileImage: {
     width: 40,
     height: 40,
     borderRadius: 25,
     marginRight: 10,
   },
-  image:{
-    width:"100%",
-    aspectRatio:4/3,
-  },
   name: {
     fontWeight: "500",
   },
+  input: {},
   buttonContainer: {
     marginTop: "auto",
+    marginVertical: 10,
   },
-  icon:{
-    marginLeft:"auto"
-  }
+  icon: {
+    marginLeft: "auto",
+  },
+  image: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+  },
 });
 
 export default CreatePostScreen;
